@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'pages/inicio_page.dart';
 import 'pages/alertas_page.dart';
 import 'pages/historial_page.dart';
+import 'pages/login_page.dart'; // 👈 Import del login
 
 void main() {
   runApp(const MyApp());
@@ -19,11 +20,13 @@ class MyApp extends StatelessWidget {
         primaryColor: const Color(0xFFFF7B2B),
         scaffoldBackgroundColor: Colors.white,
       ),
-      home: const DashboardScreen(),
+      // 👇 Inicia con la pantalla de login
+      home: const LoginPage(),
     );
   }
 }
 
+// 👇 Tu dashboard principal (se accede tras el login)
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
