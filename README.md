@@ -1,4 +1,4 @@
-![Logo de la App](ruta/al/logo.png)  
+![Logo de la App](proyecto_sensor_de_gas/Aplicación_Movil/gasalert/android/app/src/main/res/minimap-hdpi/ic_launcher.png)  
 
 ---
 
@@ -17,7 +17,29 @@ Ejemplo: "SmartBulb App permite controlar una bombilla inteligente desde tu tel�
 ---
 
 ## ⚙️ Instalación
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/usuario/nombre_de_la_app.git
-   cd nombre_de_la_app
+
+
+
+Contribuciones
+Este proyecto fue desarrollado por:
+
+👤 Nombre del autor principal – Rol (ej. desarrollo backend, frontend, diseño UI)
+
+👤 Colaborador 1 – Rol
+
+👤 Colaborador 2 – Rol
+
+Cómo contribuir
+Haz un fork del proyecto.
+
+Crea una rama (git checkout -b feature/nueva-funcionalidad).
+
+Haz commit de tus cambios (git commit -m 'Agrega nueva funcionalidad').
+
+Haz push a la rama (git push origin feature/nueva-funcionalidad).
+
+Abre un Pull Request.
+
+📄 Licencia
+Este proyecto está bajo la licencia MIT. Consulta el archivo LICENSE para más detalles.
+
