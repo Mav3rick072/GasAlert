@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../main.dart';
 import 'register_page.dart';
-import '../main.dart'; // para acceder al DashboardScreen
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,19 +13,62 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  void _login() {
-    // Simulación de login correcto
-    if (_emailController.text.isNotEmpty &&
-        _passwordController.text.isNotEmpty) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const DashboardScreen()),
-      );
-    } else {
+  bool _isLoading = false; // Para mostrar un indicador de carga
+
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor ingrese sus credenciales')),
+        const SnackBar(content: Text('Por favor complete todos los campos')),
       );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+
+      // Navega al Dashboard al iniciar sesión correctamente
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String mensaje = "Ocurrió un error al iniciar sesión";
+
+      switch (e.code) {
+        case 'user-not-found':
+          mensaje = 'Usuario no encontrado';
+          break;
+        case 'wrong-password':
+          mensaje = 'Contraseña incorrecta';
+          break;
+        case 'invalid-email':
+          mensaje = 'Correo electrónico inválido';
+          break;
+        case 'user-disabled':
+          mensaje = 'La cuenta ha sido deshabilitada';
+          break;
+        default:
+          mensaje = 'Error: ${e.message}';
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mensaje)));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error inesperado, intente nuevamente')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -37,16 +81,13 @@ class _LoginPageState extends State<LoginPage> {
           padding: const EdgeInsets.all(25),
           child: SingleChildScrollView(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo
                 const Icon(
                   Icons.gas_meter,
                   size: 100,
                   color: Color(0xFFFF7B2B),
                 ),
                 const SizedBox(height: 30),
-
                 const Text(
                   "Gas Alert",
                   style: TextStyle(
@@ -57,9 +98,10 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // Campo de email
+                // 📧 Campo de correo
                 TextField(
                   controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: 'Correo electrónico',
                     border: OutlineInputBorder(
@@ -69,7 +111,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Campo de contraseña
+                // 🔒 Campo de contraseña
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -82,28 +124,40 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 30),
 
-                // Botón de inicio de sesión
-                ElevatedButton(
-                  onPressed: _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF7B2B),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 60,
-                      vertical: 15,
+                // 🔘 Botón de inicio de sesión
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF7B2B),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 60,
+                        vertical: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    'Iniciar sesión',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Iniciar sesión',
+                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          ),
                   ),
                 ),
 
                 const SizedBox(height: 20),
 
-                // Redirección a registro
+                // 🔗 Enlace para registrarse
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

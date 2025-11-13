@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1049578725587",
+    "project_id": "gasalertapp-001",
+    "storage_bucket": "gasalertapp-001.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1049578725587:android:d9f3c1e80070e8ddd73426",
+        "android_client_info": {
+          "package_name": "com.example.gasalert"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_BJv5xpp-d60oT2OZ-x6vnB4A44GDunQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

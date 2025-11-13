@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'login_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -13,10 +15,36 @@ class _RegisterScreenState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _register() {
-    if (_nameController.text.isNotEmpty &&
-        _emailController.text.isNotEmpty &&
-        _passwordController.text.isNotEmpty) {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  void _register() async {
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Complete todos los campos')),
+      );
+      return;
+    }
+
+    try {
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
+
+      // Guardamos info adicional en Firestore
+      await _firestore
+          .collection('usuarios')
+          .doc(userCredential.user!.uid)
+          .set({
+            'nombre': _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Registro exitoso')));
@@ -24,10 +52,14 @@ class _RegisterScreenState extends State<RegisterPage> {
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Complete todos los campos')),
-      );
+    } on FirebaseAuthException catch (e) {
+      String mensaje = 'Ocurrió un error';
+      if (e.code == 'email-already-in-use') {
+        mensaje = 'El correo ya está registrado';
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mensaje)));
     }
   }
 
@@ -47,7 +79,6 @@ class _RegisterScreenState extends State<RegisterPage> {
                   color: Color(0xFFFF7B2B),
                 ),
                 const SizedBox(height: 30),
-
                 const Text(
                   "Crear cuenta",
                   style: TextStyle(
@@ -57,7 +88,6 @@ class _RegisterScreenState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 40),
-
                 TextField(
                   controller: _nameController,
                   decoration: InputDecoration(
@@ -68,7 +98,6 @@ class _RegisterScreenState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 TextField(
                   controller: _emailController,
                   decoration: InputDecoration(
@@ -79,7 +108,6 @@ class _RegisterScreenState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -91,7 +119,6 @@ class _RegisterScreenState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 30),
-
                 ElevatedButton(
                   onPressed: _register,
                   style: ElevatedButton.styleFrom(
@@ -108,32 +135,6 @@ class _RegisterScreenState extends State<RegisterPage> {
                     'Registrarse',
                     style: TextStyle(fontSize: 18, color: Colors.white),
                   ),
-                ),
-
-                const SizedBox(height: 20),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("¿Ya tienes cuenta? "),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginPage(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        "Inicia sesión",
-                        style: TextStyle(
-                          color: Color(0xFFFF7B2B),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

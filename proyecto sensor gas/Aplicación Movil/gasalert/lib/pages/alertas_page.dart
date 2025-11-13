@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'nueva_ventana.dart';
 
-class AlertasPage extends StatelessWidget {
+class AlertasPage extends StatefulWidget {
   const AlertasPage({super.key});
+
+  @override
+  State<AlertasPage> createState() => _AlertasPageState();
+}
+
+class _AlertasPageState extends State<AlertasPage> {
+  bool isConectado = true; // Estado de conexión inicial
 
   @override
   Widget build(BuildContext context) {
@@ -37,11 +44,15 @@ class AlertasPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    setState(() {
+                      isConectado = true;
+                    });
+                  },
                   icon: const Icon(Icons.check_circle, color: Colors.white),
                   label: const Text("Conectado"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: isConectado ? Colors.green : Colors.grey,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 12,
@@ -52,11 +63,15 @@ class AlertasPage extends StatelessWidget {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    setState(() {
+                      isConectado = false;
+                    });
+                  },
                   icon: const Icon(Icons.cancel, color: Colors.white),
                   label: const Text("Desconectado"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: !isConectado ? Colors.red : Colors.grey,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 12,
