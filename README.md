@@ -1,4 +1,4 @@
-![Logo de la App](proyecto_sensor_de_gas/Aplicación_Movil/gasalert/android/app/src/main/res/minimap-hdpi/ic_launcher.png)  
+![Logo de la App](gasalertlogo.jpg)  
 
 ---
 
