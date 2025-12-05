@@ -1,156 +1,77 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/my_bluetooth_service.dart';
 
-class HistorialPage extends StatelessWidget {
-  const HistorialPage({super.key});
+class HistorialPage extends StatefulWidget {
+  final MyBluetoothService bluetooth;
+
+  const HistorialPage({super.key, required this.bluetooth});
+
+  @override
+  State<HistorialPage> createState() => _HistorialPageState();
+}
+
+class _HistorialPageState extends State<HistorialPage> {
+  final List<String> logs = [];
+  StreamSubscription<String>? _logSub;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 🔥 Escucha los mensajes interpretados del Bluetooth Classic
+    _logSub = widget.bluetooth.logController.stream.listen((mensaje) {
+      if (mensaje.trim().isEmpty) return;
+
+      final now = DateTime.now();
+      final hora =
+          "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+
+      // 🔥 Guardar con hora
+      setState(() {
+        logs.insert(0, "$hora — $mensaje");
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _logSub?.cancel(); // Evitar fugas de memoria
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Datos de ejemplo (puedes conectarlo luego con tu base de datos)
-    final List<Map<String, String>> eventos = [
-      {
-        "fecha": "16/10/2025",
-        "hora": "10:23",
-        "descripcion": "Sensor 1 detectó fuga leve",
-      },
-      {
-        "fecha": "15/10/2025",
-        "hora": "08:10",
-        "descripcion": "Reinicio del sistema completado",
-      },
-      {
-        "fecha": "14/10/2025",
-        "hora": "15:45",
-        "descripcion": "Mantenimiento preventivo realizado",
-      },
-    ];
-
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Historial de eventos",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFFF7B2B),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    // Encabezado de columnas
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade400),
-                        ),
-                      ),
-                      child: const Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              "Fecha",
-                              textAlign: TextAlign.center, // 🔹 Centrado
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              "Hora",
-                              textAlign: TextAlign.center, // 🔹 Centrado
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 4,
-                            child: Text(
-                              "Descripción",
-                              textAlign: TextAlign.center, // 🔹 Centrado
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Filas de datos
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: eventos.length,
-                        itemBuilder: (context, index) {
-                          final evento = eventos[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    evento["fecha"]!,
-                                    textAlign:
-                                        TextAlign.center, // 🔹 Centrado también
-                                    style: const TextStyle(
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    evento["hora"]!,
-                                    textAlign: TextAlign.center, // 🔹 Centrado
-                                    style: const TextStyle(
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 4,
-                                  child: Text(
-                                    evento["descripcion"]!,
-                                    textAlign: TextAlign.center, // 🔹 Centrado
-                                    style: const TextStyle(
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+      appBar: AppBar(
+        title: const Text("Historial"),
+        backgroundColor: Colors.orange,
       ),
+
+      body: logs.isEmpty
+          ? const Center(
+              child: Text(
+                "Sin registros aún",
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(15),
+              itemCount: logs.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                return Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(15),
+                    child: Text(
+                      logs[index],
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

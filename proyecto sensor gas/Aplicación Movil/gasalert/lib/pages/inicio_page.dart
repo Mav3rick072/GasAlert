@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'configuracion_perfil_page.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import '../services/my_bluetooth_service.dart';
 
 class InicioPage extends StatefulWidget {
   const InicioPage({super.key});
@@ -12,199 +11,195 @@ class InicioPage extends StatefulWidget {
 }
 
 class _InicioPageState extends State<InicioPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+  final MyBluetoothService bt = MyBluetoothService();
 
-  bool sensorConectado =
-      true; // Simulación (más adelante puedes vincularlo al sensor real)
-  bool alertaUrgente = false; // Simulación
-  String nombreUsuario = "Cargando...";
+  bool conectado = false;
+  String estadoSensor = "Sin datos";
+  StreamSubscription<bool>? _sensorSub;
+  StreamSubscription<String>? _logSub;
+
+  List<BluetoothDevice> dispositivos = [];
+  bool escaneando = false;
 
   @override
   void initState() {
     super.initState();
-    _cargarUsuario();
-  }
 
-  Future<void> _cargarUsuario() async {
-    User? usuario = _auth.currentUser;
-    if (usuario != null) {
-      // Escuchar en tiempo real los cambios del documento del usuario
-      try {
-        _userSub = _firestore
-            .collection('usuarios')
-            .doc(usuario.uid)
-            .snapshots()
-            .listen(
-              (doc) {
-                if (doc.exists) {
-                  final data = doc.data();
-                  setState(() {
-                    nombreUsuario =
-                        data?['nombre'] ?? usuario.email ?? 'Usuario';
-                  });
-                } else {
-                  setState(() {
-                    nombreUsuario = usuario.email ?? 'Usuario';
-                  });
-                }
-              },
-              onError: (e) {
-                debugPrint('Error al escuchar usuario: $e');
-              },
-            );
-      } catch (e) {
-        setState(() {
-          nombreUsuario = 'Error al cargar usuario';
-        });
-        debugPrint("Error al obtener datos del usuario: $e");
-      }
-    } else {
-      setState(() {
-        nombreUsuario = 'Invitado';
-      });
-    }
+    // Estado conectado/desconectado
+    _sensorSub = bt.sensorController.stream.listen((activo) {
+      setState(() => conectado = activo);
+    });
+
+    // Estado del sensor recibido desde el Arduino
+    _logSub = bt.logController.stream.listen((log) {
+      setState(() => estadoSensor = log);
+    });
   }
 
   @override
   void dispose() {
-    _userSub?.cancel();
+    _sensorSub?.cancel();
+    _logSub?.cancel();
     super.dispose();
   }
 
+  // ================================================================
+  // 🔍 ESCANEAR (Bluetooth Classic = dispositivos emparejados)
+  // ================================================================
+  Future<void> _escanear() async {
+    setState(() => escaneando = true);
+
+    dispositivos = await bt.escanear();
+
+    setState(() => escaneando = false);
+  }
+
+  // ================================================================
+  // 🔌 CONECTAR A HC-05
+  // ================================================================
+  Future<void> _conectar(String nombre) async {
+    try {
+      await bt.conectar(nombre);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Conectado a $nombre")));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error al conectar: $e")));
+    }
+  }
+
+  // ================================================================
+  // 🔄 RECONEXIÓN MANUAL
+  // ================================================================
+  Future<void> _reconectar() async {
+    await bt.desconectar();
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (bt.ultimoId != null) {
+      try {
+        await bt.conectar("HC-05");
+      } catch (_) {}
+    }
+  }
+
+  // ================================================================
+  // ❌ DESCONECTAR
+  // ================================================================
+  Future<void> _desconectar() async {
+    await bt.desconectar();
+    setState(() => conectado = false);
+  }
+
+  // ================================================================
+  // UI
+  // ================================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 🧭 Título principal
-              const Text(
-                'Dashboard',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFFF7B2B),
-                ),
-              ),
-              const SizedBox(height: 30),
+      appBar: AppBar(
+        title: const Text("Inicio"),
+        backgroundColor: Colors.orange,
+      ),
 
-              // 🔌 Estado del sensor
-              Row(
-                children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: const Icon(
-                      Icons.gas_meter,
-                      size: 60,
-                      color: Color(0xFFFF7B2B),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Icon(
+              conectado ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+              color: conectado ? Colors.blue : Colors.grey,
+              size: 80,
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              conectado ? "Estado: Conectado" : "Estado: Desconectado",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: conectado ? Colors.green : Colors.red,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            Text("Sensor: $estadoSensor", style: const TextStyle(fontSize: 18)),
+
+            const Divider(height: 40),
+
+            // -----------------------------------------------------
+            // 🔍 BOTON BUSCAR
+            // -----------------------------------------------------
+            ElevatedButton.icon(
+              onPressed: escaneando ? null : _escanear,
+              icon: const Icon(Icons.search),
+              label: Text(escaneando ? "Buscando..." : "Buscar dispositivos"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // -----------------------------------------------------
+            // 📋 LISTA DE DISPOSITIVOS EMPAREJADOS
+            // -----------------------------------------------------
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: dispositivos.length,
+              itemBuilder: (context, index) {
+                final d = dispositivos[index];
+
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.bluetooth),
+                    title: Text(d.name ?? "Sin nombre"),
+                    subtitle: Text(d.address),
+                    trailing: ElevatedButton(
+                      onPressed: () => _conectar(d.name ?? "HC-05"),
+                      child: const Text("Conectar"),
                     ),
                   ),
-                  const SizedBox(width: 20),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Sensor principal',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        sensorConectado ? 'Conectado' : 'Desconectado',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: sensorConectado ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
+                );
+              },
+            ),
 
-              // 🚨 Alerta urgente
-              alertaUrgente
-                  ? Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: Colors.red[400],
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'ALERTA URGENTE: Gas detectado 🚨',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    )
-                  : Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: Colors.green[100],
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'Todo en orden ✅',
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-              const SizedBox(height: 30),
+            const SizedBox(height: 20),
 
-              // 👤 Perfil del usuario
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ConfiguracionPerfilPage(),
-                    ),
-                  );
-                },
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 25,
-                      backgroundColor: Colors.grey[300],
-                      child: const Icon(Icons.person, size: 30),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Text(
-                        nombreUsuario,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios, size: 18),
-                  ],
-                ),
+            // -----------------------------------------------------
+            // 🔄 RECONEXIÓN
+            // -----------------------------------------------------
+            ElevatedButton.icon(
+              onPressed: conectado ? _reconectar : null,
+              icon: const Icon(Icons.refresh),
+              label: const Text("Reconectar"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // -----------------------------------------------------
+            // ❌ DESCONECTAR
+            // -----------------------------------------------------
+            ElevatedButton.icon(
+              onPressed: conectado ? _desconectar : null,
+              icon: const Icon(Icons.close),
+              label: const Text("Desconectar"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ),
       ),
     );

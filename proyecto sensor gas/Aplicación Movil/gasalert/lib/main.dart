@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import '../services/notification_service.dart';
+import '../services/my_bluetooth_service.dart';
 import 'pages/inicio_page.dart';
 import 'pages/alertas_page.dart';
 import 'pages/historial_page.dart';
 import 'pages/login_page.dart';
-import 'firebase_options.dart'; // Generado por FlutterFire CLI
+import 'pages/splash_screen.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.init();
   runApp(const MyApp());
 }
 
@@ -26,27 +29,80 @@ class MyApp extends StatelessWidget {
         primaryColor: const Color(0xFFFF7B2B),
         scaffoldBackgroundColor: Colors.white,
       ),
-      // 👇 Home depende si hay usuario logueado
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            // Mientras verifica el login
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasData) {
-            // Usuario logueado → Dashboard
-            return const DashboardScreen();
-          } else {
-            // Usuario no logueado → Login
-            return const LoginPage();
-          }
-        },
-      ),
+      home: const AuthWrapper(),
     );
   }
 }
 
-// Dashboard principal (accede tras el login)
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _showingSplash = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _showingSplash = false;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showingSplash) {
+      return SplashScreen(
+        nextPage: const AuthPage(),
+        duration: const Duration(seconds: 0),
+      );
+    }
+
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasData) {
+          return const DashboardScreen();
+        } else {
+          return const LoginPage();
+        }
+      },
+    );
+  }
+}
+
+class AuthPage extends StatelessWidget {
+  const AuthPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasData) {
+          return const DashboardScreen();
+        } else {
+          return const LoginPage();
+        }
+      },
+    );
+  }
+}
+
+// -----------------------------
+// DASHBOARD CON BLUETOOTH GLOBAL
+// -----------------------------
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -54,24 +110,52 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
+  final MyBluetoothService bluetooth =
+      MyBluetoothService(); // ⭐ Instancia global
+
   int _selectedIndex = 0;
+  DateTime? _backgroundEnteredAt;
+  final Duration _logoutTimeout = const Duration(minutes: 5);
 
-  // Lista de pantallas
-  final List<Widget> _pages = const [
-    InicioPage(),
-    AlertasPage(),
-    HistorialPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _backgroundEnteredAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_backgroundEnteredAt != null) {
+        final elapsed = DateTime.now().difference(_backgroundEnteredAt!);
+        if (elapsed >= _logoutTimeout) {
+          FirebaseAuth.instance.signOut();
+        }
+        _backgroundEnteredAt = null;
+      }
+    }
+    super.didChangeAppLifecycleState(state);
   }
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      InicioPage(),
+      AlertasPage(bluetooth: bluetooth),
+      HistorialPage(bluetooth: bluetooth),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gas Alert', style: TextStyle(color: Colors.white)),
@@ -86,13 +170,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: _pages[_selectedIndex],
+      body: pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        onTap: (i) => setState(() => _selectedIndex = i),
         backgroundColor: const Color(0xFFFF7B2B),
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
+        selectedItemColor: Colors.orange[800],
+        unselectedItemColor: Colors.orange[400],
         showUnselectedLabels: true,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
