@@ -1,0 +1,112 @@
+#include <LiquidCrystal.h>
+#include <Servo.h>
+#include <SoftwareSerial.h>
+
+// ---------------- LCD paralelo (RS, E, D4, D5, D6, D7) ----------------
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+// ---------------- Sensores / Actuadores ----------------
+const int gasAnalogPin = A0;   // MQ6 A0 (analógica)
+const int gasDigitalPin = 7;   // MQ6 D0 (digital)
+const int ledPin       = 13;   // LED alarma
+const int servoPin     = 9;    // Servo ventana
+
+// ---------------- Bluetooth (SoftwareSerial) ----------------
+#define BT_RX 8   // RX del Arduino  <- TX del Bluetooth
+#define BT_TX 10  // TX del Arduino  -> RX del Bluetooth
+SoftwareSerial bluetooth(BT_RX, BT_TX);
+
+// ---------------- Sistema ----------------
+Servo miServo;
+const int umbralGas = 300;     // Ajusta según tus pruebas
+String receivedData = "";
+
+void setup() {
+  Serial.begin(9600);
+  bluetooth.begin(9600); // Asegúrate que la velocidad de transmisión sea la misma
+
+  pinMode(gasDigitalPin, INPUT);
+  pinMode(ledPin, OUTPUT);
+
+  miServo.attach(servoPin);
+  miServo.write(0); // ventana cerrada
+
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Inicializando...");
+  delay(1500);
+}
+
+void loop() {
+  // ---- Lecturas MQ6 ----
+  int valorAnalogico = analogRead(gasAnalogPin);
+  int valorDigital   = digitalRead(gasDigitalPin);
+
+  // ---- Lógica de alarma / servo ----
+  bool hayGas = (valorAnalogico > umbralGas) || (valorDigital == LOW);
+
+  if (hayGas) {
+    digitalWrite(ledPin, HIGH);
+    miServo.write(90);  // abrir ventana
+    bluetooth.println("A");  // Enviar "A" para indicar que el sensor está activado (alerta de gas)
+  } else {
+    digitalWrite(ledPin, LOW);
+    miServo.write(0);   // cerrar ventana
+    bluetooth.println("B");  // Enviar "B" para indicar que no hay gas (estado seguro)
+  }
+
+  // ---- LCD ----
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Gas: ");
+  lcd.print(valorAnalogico);
+  lcd.setCursor(0, 1);
+  lcd.print(hayGas ? "!Alerta de gas!" : "Sin gas.");
+
+  // ---- Depuración Serial (opcional) ----
+  Serial.print("MQ6 A0=");
+  Serial.print(valorAnalogico);
+  Serial.print("  D0=");
+  Serial.print(valorDigital);
+  Serial.print("  Estado=");
+  Serial.println(hayGas ? "ALERTA" : "OK");
+
+  // ---- Bluetooth: recepción de comandos ----
+  while (bluetooth.available()) {
+    char c = bluetooth.read();
+    if (c == '\r') continue;           // ignora CR
+    if (c == '\n') {                   // fin de comando
+      processBluetoothCommand(receivedData);
+      receivedData = "";
+    } else {
+      receivedData += c;
+      if (receivedData.length() > 50) receivedData = ""; // simple protección
+    }
+  }
+
+  delay(5000);
+}
+
+void processBluetoothCommand(String cmd) {
+  cmd.trim();
+  cmd.toLowerCase();
+
+  Serial.print("BT cmd: "); Serial.println(cmd);
+
+  if (cmd == "abrir") {
+    miServo.write(90);
+    bluetooth.println("Ventana abierta.");
+  } else if (cmd == "cerrar") {
+    miServo.write(0);
+    bluetooth.println("Ventana cerrada.");
+  } else if (cmd == "estado") {
+    int vA = analogRead(gasAnalogPin);
+    int vD = digitalRead(gasDigitalPin);
+    bluetooth.print("Gas A0: "); bluetooth.println(vA);
+    bluetooth.print("D0: ");     bluetooth.println(vD);
+    bluetooth.println((vA > umbralGas || vD == LOW) ? "ALERTA" : "OK");
+  } else {
+    bluetooth.println("Comando no reconocido");
+  }
+}
